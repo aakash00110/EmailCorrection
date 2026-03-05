@@ -1,0 +1,51 @@
+name: Enrich contacts CSV
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_csv:
+        description: Target CSV path (incomplete leads)
+        required: true
+        default: target.csv
+      master_csv:
+        description: Master CSV path (reference dataset)
+        required: true
+        default: master.csv
+      commit_changes:
+        description: Commit enriched CSV back to the current branch
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pandas
+
+      - name: Enrich target CSV
+        run: python enrich_contacts.py --target "${{ inputs.target_csv }}" --master "${{ inputs.master_csv }}" --in-place
+
+      - name: Commit changes (if any)
+        if: ${{ inputs.commit_changes == 'true' }}
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ inputs.target_csv }}"
+          git commit -m "Enrich contacts in ${{ inputs.target_csv }}"
+          git push
