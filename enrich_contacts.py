@@ -43,6 +43,13 @@ def normalize_domain(raw: str) -> str:
     return value
 
 
+def _find_domain_column(columns) -> str:
+    for name in columns:
+        if isinstance(name, str) and name.strip().lower() == "domain":
+            return name
+    return ""
+
+
 @dataclass(frozen=True)
 class RunStats:
     rows_scanned: int
@@ -53,11 +60,15 @@ class RunStats:
 
 
 def build_master_index(master_df: pd.DataFrame) -> dict[str, dict[str, str]]:
-    if "domain" not in master_df.columns:
-        raise ValueError("Master CSV must contain a 'domain' column.")
+    domain_col = _find_domain_column(master_df.columns)
+    if not domain_col:
+        raise ValueError(
+            f"Master CSV must contain a 'domain' column (case-insensitive). "
+            f"Found columns: {list(master_df.columns)}"
+        )
 
     master_df = master_df.copy()
-    master_df["__domain_norm"] = master_df["domain"].map(normalize_domain)
+    master_df["__domain_norm"] = master_df[domain_col].map(normalize_domain)
 
     index: dict[str, dict[str, str]] = {}
     for _, row in master_df.iterrows():
@@ -84,11 +95,15 @@ def build_master_index(master_df: pd.DataFrame) -> dict[str, dict[str, str]]:
 
 
 def enrich_target_df(target_df: pd.DataFrame, master_index: dict[str, dict[str, str]]) -> tuple[pd.DataFrame, RunStats]:
-    if "domain" not in target_df.columns:
-        raise ValueError("Target CSV must contain a 'domain' column.")
+    domain_col = _find_domain_column(target_df.columns)
+    if not domain_col:
+        raise ValueError(
+            f"Target CSV must contain a 'domain' column (case-insensitive). "
+            f"Found columns: {list(target_df.columns)}"
+        )
 
     target_df = target_df.copy()
-    target_df["__domain_norm"] = target_df["domain"].map(normalize_domain)
+    target_df["__domain_norm"] = target_df[domain_col].map(normalize_domain)
 
     rows_scanned = int(len(target_df))
     rows_missing_info = 0
@@ -156,6 +171,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--in-place", action="store_true", help="Overwrite the target CSV file with enriched output.")
     parser.add_argument("--output", help="Write enriched CSV to this path instead of overwriting the target.")
     parser.add_argument("--dry-run", action="store_true", help="Do not write any files; only print stats.")
+    parser.add_argument(
+        "--reset-email",
+        action="store_true",
+        help="Clear existing email values in the target before enrichment.",
+    )
     parser.add_argument("--json", action="store_true", help="Print stats as JSON (single line).")
     return parser.parse_args(argv)
 
@@ -170,6 +190,10 @@ def main(argv: list[str]) -> int:
 
     target_df = read_csv(args.target)
     master_df = read_csv(args.master)
+
+    if args.reset_email and "email" in target_df.columns:
+        target_df = target_df.copy()
+        target_df["email"] = ""
 
     master_index = build_master_index(master_df)
 
