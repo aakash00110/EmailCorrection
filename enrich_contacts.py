@@ -199,6 +199,9 @@ def main(argv: list[str]) -> int:
 
     enriched_df, stats = enrich_target_df(target_df, master_index)
 
+    if stats.rows_missing_info > 0 and stats.rows_enriched_successfully == 0:
+        print("Warning: no rows were enriched. Check that target and master CSV share domains.")
+
     if args.json:
         print(json.dumps(stats.__dict__, separators=(",", ":"), sort_keys=True))
     else:
