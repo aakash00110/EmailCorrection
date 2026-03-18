@@ -35,7 +35,12 @@ jobs:
         run: python -m pip install --upgrade pip pandas
 
       - name: Enrich target CSV
-        run: python enrich_contacts.py --target "${{ inputs.target_csv }}" --master "${{ inputs.master_csv }}" --in-place
+        run: |
+          python enrich_contacts.py \
+            --target "${{ inputs.target_csv }}" \
+            --master "${{ inputs.master_csv }}" \
+            --output "enriched_${{ inputs.target_csv }}" \
+            --reset-email
 
       - name: Commit changes (if any)
         if: ${{ inputs.commit_changes == 'true' }}
@@ -46,6 +51,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${{ inputs.target_csv }}"
-          git commit -m "Enrich contacts in ${{ inputs.target_csv }}"
+          git add "enriched_${{ inputs.target_csv }}"
+          git commit -m "Enrich contacts in enriched_${{ inputs.target_csv }}"
           git push
